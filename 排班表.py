@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置
+# 2. 颜色配置 (背景色保留，文字颜色在下方渲染时强制转黑)
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -35,15 +35,13 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法（逻辑全保留，但不显示文字） ---
+# --- 核心算法（保持哥原来的逻辑不变） ---
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
-    # 挑选晚班（避开限制名单）
     eve_cands = [p for p in avail_list if p not in (never_evening or [])]
     target_eve = [p for p in eve_cands if p in (evening_pref or [])]
     final_eve = target_eve[0] if target_eve else (random.choice(eve_cands) if eve_cands else avail_list[-1])
     
-    # 挑选早班（规避晚接早，优先指定人）
     rem_morn = [p for p in avail_list if p != final_eve]
     if not rem_morn: return [final_eve]
     morn_cands = [p for p in rem_morn if p != last_evening_person]
@@ -51,7 +49,6 @@ def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None,
     morn_pref_list = [p for p in morn_cands if p in (morning_pref or [])]
     final_morn = morn_pref_list[0] if morn_pref_list else random.choice(morn_cands)
     
-    # 填充中间
     mid = [p for p in avail_list if p != final_morn and p != final_eve]
     random.shuffle(mid)
     return [final_morn] + mid + [final_eve]
@@ -75,20 +72,21 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 逻辑静默执行
         ord_h = get_optimized_order(avail_h, last_h, evening_pref=["刘文"], never_evening=["一一", "思涵"])
         ord_s = get_optimized_order(avail_s, last_s, morning_pref=["丁泳池"], evening_pref=["焦斌"], never_evening=["陈曦"])
         
         last_h, last_s = ord_h[-1], ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 (带深色增强边框) ---
+    # --- HTML 渲染 (重点优化：人名全黑、加大、加粗) ---
     html = """<style>
         .main-table { width: 100%; border-collapse: collapse; text-align: center; color: #333; }
-        .main-table th, .main-table td { border: 2px solid #444; padding: 10px; font-size: 13px; }
+        .main-table th, .main-table td { border: 2px solid #444; padding: 10px; }
         .header-row { background-color: #f2f2f2; font-weight: bold; }
-        .time-col { background-color: #ffffff; width: 100px; font-weight: bold; border-right: 3px solid #000; }
-        .side-name { width: 90px; font-weight: bold; }
+        .time-col { background-color: #ffffff; width: 100px; font-weight: bold; border-right: 3px solid #000; font-size: 14px; }
+        .side-name { width: 90px; font-weight: 900; font-size: 16px; color: #000 !important; }
+        /* 核心样式：强制名字黑、大、粗 */
+        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 18px !important; }
     </style><table class='main-table'>"""
 
     # 1. 休息区
@@ -96,12 +94,12 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
     for day in days: html += f"<th colspan='2'>{day}</th>"
     html += "</tr>"
     for p in all_members:
-        s = color_config.get(p, {"bg": "#fff", "text": "#000"})
-        html += f"<tr><td class='side-name' style='background:{s['bg']}; color:{s['text']};'>{p}</td>"
+        s = color_config.get(p, {"bg": "#fff"})
+        html += f"<tr><td class='side-name' style='background:{s['bg']};'>{p}</td>"
         for day in days:
             is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
-            bg, txt, content = (s['bg'], s['text'], f"<b>{p}</b>") if is_off else ("#fff", "#fff", "")
-            html += f"<td colspan='2' style='background:{bg}; color:{txt};'>{content}</td>"
+            bg, content = (s['bg'], f"<span class='name-cell'>{p}</span>") if is_off else ("#fff", "")
+            html += f"<td colspan='2' style='background:{bg};'>{content}</td>"
         html += "</tr>"
 
     # 黑色分割隔离带
@@ -126,7 +124,8 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
                     if weekly_data[day][role][j] == name: rs += 1
                     else: break
                 skip[day][role] = rs - 1
-                c = color_config.get(name, {"bg": "#fff", "text": "#000"})
-                html += f"<td rowspan='{rs}' style='background:{c['bg']}; color:{c['text']}; font-weight:bold; font-size:14px;'>{name}</td>"
+                c = color_config.get(name, {"bg": "#fff"})
+                # 应用强制加粗加黑样式
+                html += f"<td rowspan='{rs}' style='background:{c['bg']};'><span class='name-cell'>{name}</span></td>"
         html += "</tr>"
     st.markdown(html + "</table>", unsafe_allow_html=True)
