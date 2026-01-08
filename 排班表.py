@@ -34,36 +34,34 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法逻辑：回归固定优先 + 规避晚接早 ---
+# --- 核心算法逻辑：固定优先 + 规避晚接早 ---
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None):
     if not avail_list: return []
     
-    # 1. 确定晚班人选 (优先排指定的 evening_pref)
+    # 1. 确定晚班人选 (优先排指定的人，如 刘文/焦斌)
     final_evening_person = None
     target_evening = [p for p in avail_list if p in (evening_pref or [])]
     if target_evening:
-        final_evening_person = target_evening[0] # 比如 刘文
+        final_evening_person = target_evening[0]
     else:
-        # 如果指定人没在，就从可用的人里随机留一个收尾
         final_evening_person = random.choice(avail_list)
 
-    # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选)
+    # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选，如 丁泳池)
     remaining_for_morning = [p for p in avail_list if p != final_evening_person]
-    if not remaining_for_morning: # 只有一个人上班的情况
+    if not remaining_for_morning: 
         return [final_evening_person]
 
-    # 剔除昨天上晚班的人，防止晚接早
     morning_candidates = [p for p in remaining_for_morning if p != last_evening_person]
-    if not morning_candidates: morning_candidates = remaining_for_morning # 实在没人了才选昨晚那个人
+    if not morning_candidates: 
+        morning_candidates = remaining_for_morning 
     
-    # 从候选人中找是否有优先早班的 (比如 丁泳池)
     morning_pref_list = [p for p in morning_candidates if p in (morning_pref or [])]
     if morning_pref_list:
         final_morning_person = morning_pref_list[0]
     else:
         final_morning_person = random.choice(morning_candidates)
 
-    # 3. 剩下的人随机填空
+    # 3. 填充中间
     middle_people = [p for p in avail_list if p != final_morning_person and p != final_evening_person]
     random.shuffle(middle_people)
     
@@ -89,16 +87,14 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 主播：刘文固定晚班
         ordered_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, evening_pref=["刘文"])
-        # 场控：丁泳池固定早班，焦斌固定晚班
         ordered_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, morning_pref=["丁泳池"], evening_pref=["焦斌"])
         
         last_h_eve = ordered_h[-1] if ordered_h else None
         last_s_eve = ordered_s[-1] if ordered_s else None
         weekly_data[day] = {"主播": get_grid_data(ordered_h), "场控": get_grid_data(ordered_s)}
 
-    # --- HTML 渲染 (样式保持不变) ---
+    # --- HTML 渲染 (删除了休息区行间的隔断) ---
     html = """<style>
         .schedule-table { width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; }
         .schedule-table th, .schedule-table td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
@@ -106,7 +102,7 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         .name-col { background-color: #fafafa; width: 100px; font-weight: bold; }
     </style><div class='table-container'><table class='schedule-table'>"""
 
-    # 休息公示
+    # 休息公示区：删除了 row 之间的隔断行
     html += "<tr><th class='name-col'>休假安排</th>"
     for day in days: html += f"<th colspan='2' class='header-day'>{day}</th>"
     html += "</tr>"
@@ -115,14 +111,21 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         html += f"<tr><td class='name-col' style='background:{s['bg']}; color:{s['text']};'>{person}</td>"
         for day in days:
             is_off = person in off_data[day]["h"] or person in off_data[day]["s"]
-            html += f"<td colspan='2' style='background:{s['bg'] if is_off else '#fff'}; color:{s['text'] if is_off else '#fff'};'>{'<b>'+person+'</b>' if is_off else ''}</td>"
-        html += "</tr><tr><td colspan='15' style='background:#f0f0f0; height:5px;'></td></tr>"
+            bg = s['bg'] if is_off else '#fff'
+            text_color = s['text'] if is_off else '#fff' # 不休息则文字透明
+            content = f"<b>{person}</b>" if is_off else ""
+            html += f"<td colspan='2' style='background:{bg}; color:{text_color};'>{content}</td>"
+        html += "</tr>"
 
-    # 表头与内容
+    # 中间过渡大隔断（只保留这一个，区分上下表）
+    html += "<tr><td colspan='15' style='background:#f0f0f0; height:12px;'></td></tr>"
+
+    # 排班表头
     html += "<tr><th class='name-col'>时间</th>"
     for _ in days: html += "<th>主播</th><th>场控</th>"
     html += "</tr>"
 
+    # 排班内容渲染
     skip = {day: {"主播": 0, "场控": 0} for day in days}
     for i in range(16):
         html += f"<tr><td class='name-col' style='color:#888;'>{time_index[i]}</td>"
