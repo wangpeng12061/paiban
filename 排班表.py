@@ -40,34 +40,37 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法优化：锁定位置 + 强制规避晚接早 ---
-def get_optimized_order(avail_list, last_evening_person=None, fixed_morning=None, fixed_evening=None, never_evening=None):
+# --- 核心算法优化：强力锁定位置 ---
+def get_optimized_order(avail_list, last_evening_person=None, super_fixed_morn=None, super_fixed_eve=None, never_evening=None):
     if not avail_list: return []
     
-    # 1. 先定晚班 (后下班的人)
-    eve_candidates = [p for p in avail_list if p in (fixed_evening or [])]
-    if not eve_candidates:
-        eve_candidates = [p for p in avail_list if p not in (never_evening or [])]
+    # 1. 确定晚班 (刘文、焦斌只要在，就固定晚班)
+    final_eve = None
+    fixed_eve_cands = [p for p in avail_list if p in (super_fixed_eve or [])]
+    if fixed_eve_cands:
+        final_eve = fixed_eve_cands[0] # 锁定晚班
+    else:
+        # 没固定的人在，就选非限制名单里的
+        eve_cands = [p for p in avail_list if p not in (never_evening or [])]
+        final_eve = random.choice(eve_cands) if eve_cands else avail_list[-1]
     
-    # 选定晚班
-    final_eve = random.choice(eve_candidates) if eve_candidates else avail_list[-1]
-    
-    # 2. 再定早班 (先上班的人)
+    # 2. 确定早班 (丁泳池只要在，就固定早班，但需避开晚接早)
     remaining = [p for p in avail_list if p != final_eve]
     if not remaining: return [final_eve]
     
-    # 早班筛选逻辑：必须不在 fixed_morning 名单里，且绝对不能是昨天最后下班的那位 (last_evening_person)
-    morn_candidates = [p for p in remaining if p in (fixed_morning or []) and p != last_evening_person]
+    final_morn = None
+    fixed_morn_cands = [p for p in remaining if p in (super_fixed_morn or [])]
     
-    # 如果固定早班的人刚好是昨天晚班，为了休息，只能从剩下的人里挑规避了晚接早的人
-    if not morn_candidates:
-        morn_candidates = [p for p in remaining if p != last_evening_person]
+    # 这里的关键：如果固定早班的人是昨天的晚班，强制踢出早班名单
+    morn_pool = [p for p in fixed_morn_cands if p != last_evening_person]
+    
+    if morn_pool:
+        final_morn = morn_pool[0]
+    else:
+        # 没有固定早班或丁泳池需要避开晚接早，就在剩下人里找
+        morn_cands = [p for p in remaining if p != last_evening_person]
+        final_morn = random.choice(morn_cands) if morn_cands else remaining[0]
         
-    # 如果全员都无法规避（极端情况），才保底随机
-    if not morn_candidates: morn_candidates = remaining
-    
-    final_morn = random.choice(morn_candidates)
-    
     # 3. 填充中间
     mid = [p for p in remaining if p != final_morn]
     random.shuffle(mid)
@@ -87,31 +90,29 @@ def get_grid_data(ordered_list):
 if st.button("🚀 生成智能排班看板", use_container_width=True):
     time_index = [f"{h:02d}:00-{(h+1):02d}:00" for h in range(8, 24)]
     weekly_data = {}
-    
-    # 跨天记忆：用于规避晚接早
     last_h_eve, last_s_eve = None, None
     
     for day in days:
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 传入昨晚最后下班的人名
+        # 主播：刘文固定晚班，一一思涵不晚班
         ord_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, 
-                                   fixed_evening=["刘文"], 
+                                   super_fixed_eve=["刘文"], 
                                    never_evening=["一一", "思涵"])
         
+        # 场控：丁泳池固定早班，焦斌固定晚班，陈曦不晚班
         ord_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, 
-                                   fixed_morning=["丁泳池"], 
-                                   fixed_evening=["焦斌"], 
+                                   super_fixed_morn=["丁泳池"], 
+                                   super_fixed_eve=["焦斌"], 
                                    never_evening=["陈曦"])
         
-        # 记录今晚下班的人，给明天用
         if ord_h: last_h_eve = ord_h[-1]
         if ord_s: last_s_eve = ord_s[-1]
         
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 ---
+    # --- HTML 渲染 (名字黑色加粗加大) ---
     html = """<style>
         .main-table { width: 100%; border-collapse: collapse; text-align: center; color: #333; }
         .main-table th, .main-table td { border: 2px solid #444; padding: 10px; }
