@@ -106,13 +106,14 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
         if ord_s: last_s_eve = ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 ---
+    # --- HTML 渲染 (名字暴力加粗加大) ---
     html = """<style>
         .main-table { width: 100%; border-collapse: collapse; text-align: center; }
-        .main-table th, .main-table td { border: 2.5px solid #333; padding: 12px; }
+        .main-table th, .main-table td { border: 2.5px solid #333; padding: 15px 5px; }
         .header-row { background-color: #DDD; font-weight: bold; }
-        .time-col { background-color: #f9f9f9; width: 100px; font-weight: 900; border-right: 4px solid #000; font-size: 15px; }
-        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 22px !important; display: block; }
+        .time-col { background-color: #f9f9f9; width: 110px; font-weight: 900; border-right: 4px solid #000; font-size: 16px; }
+        /* 名字样式：28px 极粗 */
+        .name-cell { color: #000000 !important; font-weight: 950 !important; font-size: 28px !important; display: block; line-height: 1.1; letter-spacing: -1px; }
     </style><table class='main-table'>"""
 
     # 1. 休息区
@@ -121,14 +122,14 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
     html += "</tr>"
     for p in all_members:
         s = color_config.get(p, {"bg": "#fff"})
-        html += f"<tr><td style='background:{s['bg']}; font-weight:900; font-size:16px;'>{p}</td>"
+        html += f"<tr><td style='background:{s['bg']}; font-weight:900; font-size:18px;'>{p}</td>"
         for day in days:
             is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
             bg, content = (s['bg'], f"<span class='name-cell'>{p}</span>") if is_off else ("#fff", "")
             html += f"<td colspan='2' style='background:{bg};'>{content}</td>"
         html += "</tr>"
 
-    html += "<tr><td colspan='15' style='background:#000; height:10px; border:none;'></td></tr>"
+    html += "<tr><td colspan='15' style='background:#000; height:12px; border:none;'></td></tr>"
 
     # 2. 排班区
     html += "<tr class='header-row'><th class='time-col'>时间</th>"
