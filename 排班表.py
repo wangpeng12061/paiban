@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="直播间 16H 智能排班系统", layout="wide")
 
-# 2. 颜色配置
+# 2. 颜色配置 (莫兰迪色)
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -20,6 +20,7 @@ all_members = all_hosts + all_staffs
 days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
 st.title("🌿 直播间 16H 智能排班系统")
+st.caption("✅ 逻辑：丁泳池首班 | 刘文/焦斌末班 | 一一/思涵/陈曦避开晚班 | 规避晚接早")
 
 # 第一步：设置休息
 st.subheader("⚙️ 第一步：设置人员休息")
@@ -38,40 +39,31 @@ st.divider()
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
     
-    # 1. 确定晚班人选 (排除 never_evening 名单)
-    final_evening_person = None
+    # 挑选晚班（避开陈曦、一一、思涵）
     evening_candidates = [p for p in avail_list if p not in (never_evening or [])]
-    
-    # 优先选指定晚班人 (如 刘文/焦斌)
     target_evening = [p for p in evening_candidates if p in (evening_pref or [])]
+    
     if target_evening:
-        final_evening_person = target_evening[0]
+        final_eve = target_evening[0]
     elif evening_candidates:
-        final_evening_person = random.choice(evening_candidates)
+        final_eve = random.choice(evening_candidates)
     else:
-        # 兜底逻辑：如果全员都在 never_evening 名单，则从可用人员中挑最后一个
-        final_evening_person = avail_list[-1]
+        final_eve = avail_list[-1]
 
-    # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选)
-    remaining_for_morning = [p for p in avail_list if p != final_evening_person]
-    if not remaining_for_morning: 
-        return [final_evening_person]
-
-    morning_candidates = [p for p in remaining_for_morning if p != last_evening_person]
-    if not morning_candidates: 
-        morning_candidates = remaining_for_morning 
+    # 挑选早班（避开昨天晚班，优先丁泳池）
+    rem_for_morning = [p for p in avail_list if p != final_eve]
+    if not rem_for_morning: return [final_eve]
     
-    morning_pref_list = [p for p in morning_candidates if p in (morning_pref or [])]
-    if morning_pref_list:
-        final_morning_person = morning_pref_list[0]
-    else:
-        final_morning_person = random.choice(morning_candidates)
-
-    # 3. 填充中间位置
-    middle_people = [p for p in avail_list if p != final_morning_person and p != final_evening_person]
-    random.shuffle(middle_people)
+    morn_candidates = [p for p in rem_for_morning if p != last_evening_person]
+    if not morn_candidates: morn_candidates = rem_for_morning
     
-    return [final_morning_person] + middle_people + [final_evening_person]
+    morn_pref_list = [p for p in morn_candidates if p in (morning_pref or [])]
+    final_morn = morn_pref_list[0] if morn_pref_list else random.choice(morn_candidates)
+
+    # 填充中间
+    mid = [p for p in avail_list if p != final_morn and p != final_eve]
+    random.shuffle(mid)
+    return [final_morn] + mid + [final_eve]
 
 def get_grid_data(ordered_list):
     if not ordered_list: return ["——"] * 16
@@ -86,59 +78,49 @@ def get_grid_data(ordered_list):
 if st.button("✨ 生成排班看板", use_container_width=True):
     time_index = [f"{h:02d}:00-{(h+1):02d}:00" for h in range(8, 24)]
     weekly_data = {}
-    last_h_eve = None
-    last_s_eve = None
+    last_h, last_s = None, None
     
     for day in days:
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 主播排班：刘文末班优先；一一、思涵永不末班
-        ordered_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, 
-                                        evening_pref=["刘文"], 
-                                        never_evening=["一一", "思涵"])
+        ord_h = get_optimized_order(avail_h, last_h, evening_pref=["刘文"], never_evening=["一一", "思涵"])
+        ord_s = get_optimized_order(avail_s, last_s, morning_pref=["丁泳池"], evening_pref=["焦斌"], never_evening=["陈曦"])
         
-        # 场控排班：丁泳池首班优先；焦斌末班优先；陈曦永不末班
-        ordered_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, 
-                                        morning_pref=["丁泳池"], 
-                                        evening_pref=["焦斌"], 
-                                        never_evening=["陈曦"])
-        
-        last_h_eve = ordered_h[-1] if ordered_h else None
-        last_s_eve = ordered_s[-1] if ordered_s else None
-        weekly_data[day] = {"主播": get_grid_data(ordered_h), "场控": get_grid_data(ordered_s)}
+        last_h, last_s = ord_h[-1], ord_s[-1]
+        weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
     # --- HTML 渲染 ---
     html = """<style>
-        .schedule-table { width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; }
-        .schedule-table th, .schedule-table td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
-        .header-day { background-color: #f4f4f4; font-weight: bold; }
-        .name-col { background-color: #fafafa; width: 100px; font-weight: bold; }
-    </style><div class='table-container'><table class='schedule-table'>"""
+        .schedule-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .schedule-table th, .schedule-table td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
+        .header-day { background-color: #f8f9fa; font-weight: bold; }
+        .name-col { background-color: #fdfdfd; width: 90px; font-weight: bold; }
+    </style><table class='schedule-table'>"""
 
-    # 休息公示区
+    # 1. 休息区
     html += "<tr><th class='name-col'>休假安排</th>"
     for day in days: html += f"<th colspan='2' class='header-day'>{day}</th>"
     html += "</tr>"
-    for person in all_members:
-        s = color_config.get(person, {"bg": "#fff", "text": "#000"})
-        html += f"<tr><td class='name-col' style='background:{s['bg']}; color:{s['text']};'>{person}</td>"
+    for p in all_members:
+        s = color_config.get(p, {"bg": "#fff", "text": "#000"})
+        html += f"<tr><td class='name-col' style='background:{s['bg']}; color:{s['text']};'>{p}</td>"
         for day in days:
-            is_off = person in off_data[day]["h"] or person in off_data[day]["s"]
-            bg = s['bg'] if is_off else '#fff'
-            text_color = s['text'] if is_off else '#fff'
-            content = f"<b>{person}</b>" if is_off else ""
-            html += f"<td colspan='2' style='background:{bg}; color:{text_color};'>{content}</td>"
+            is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
+            bg, txt, content = (s['bg'], s['text'], f"<b>{p}</b>") if is_off else ("#fff", "#fff", "")
+            html += f"<td colspan='2' style='background:{bg}; color:{txt};'>{content}</td>"
         html += "</tr>"
 
-    html += "<tr><td colspan='15' style='background:#f0f0f0; height:12px;'></td></tr>"
+    html += "<tr><td colspan='15' style='background:#f0f0f0; height:10px; border:none;'></td></tr>"
+
+    # 2. 排班区
     html += "<tr><th class='name-col'>时间</th>"
     for _ in days: html += "<th>主播</th><th>场控</th>"
     html += "</tr>"
 
     skip = {day: {"主播": 0, "场控": 0} for day in days}
     for i in range(16):
-        html += f"<tr><td class='name-col' style='color:#888;'>{time_index[i]}</td>"
+        html += f"<tr><td class='name-col' style='color:#999;'>{time_index[i]}</td>"
         for day in days:
             for role in ["主播", "场控"]:
                 if skip[day][role] > 0:
@@ -150,8 +132,7 @@ if st.button("✨ 生成排班看板", use_container_width=True):
                     if weekly_data[day][role][j] == name: rs += 1
                     else: break
                 skip[day][role] = rs - 1
-                st_color = color_config.get(name, {"bg": "#FFFFFF", "text": "#000000"})
-                html += f"<td rowspan='{rs}' style='background:{st_color['bg']}; color:{st_color['text']}; font-weight:600;'>{name}</td>"
+                c = color_config.get(name, {"bg": "#fff", "text": "#000"})
+                html += f"<td rowspan='{rs}' style='background:{c['bg']}; color:{c['text']}; font-weight:bold;'>{name}</td>"
         html += "</tr>"
-    st.markdown(html + "</table></div>", unsafe_allow_html=True)
-    st.success("✅ 逻辑已更新：一一、思涵、陈曦 均已排除在晚班之外。")
+    st.markdown(html + "</table>", unsafe_allow_html=True)
