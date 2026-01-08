@@ -4,18 +4,18 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置 (根据哥的要求进行精准微调)
+# 2. 颜色配置 (精准微调版)
 color_config = {
     "丁泳池": {"bg": "#90CAF9", "text": "#000"}, # 鲜亮蓝
-    "一一": {"bg": "#CE93D8", "text": "#000"},   # 换成原思涵的明紫
+    "一一": {"bg": "#E3F2FD", "text": "#000"},   # 淡淡的蓝色有点白
     "刘文": {"bg": "#A5D6A7", "text": "#000"},   # 翠绿
-    "泽文": {"bg": "#FFF59D", "text": "#000"},   # 亮黄
-    "思涵": {"bg": "#F48FB1", "text": "#000"},   # 换成原一一的亮珊瑚粉
+    "泽文": {"bg": "#CE93D8", "text": "#000"},   # 紫色
+    "思涵": {"bg": "#F48FB1", "text": "#000"},   # 亮珊瑚粉
     "雷雷": {"bg": "#F3E5F5", "text": "#000"},   # 淡紫白色
     "周志北": {"bg": "#C5E1A5", "text": "#000"}, # 嫩绿
     "陈曦": {"bg": "#FFCC80", "text": "#000"},   # 亮橙
-    "马邦君": {"bg": "#B0BEC5", "text": "#000"}, # 换成原焦斌的蓝灰
-    "焦斌": {"bg": "#BCAAA4", "text": "#000"},   # 换成原马邦君的浅褐
+    "马邦君": {"bg": "#B0BEC5", "text": "#000"}, # 蓝灰
+    "焦斌": {"bg": "#66BB6A", "text": "#000"},   # 深绿色
     "——": {"bg": "#FFFFFF", "text": "#DFDFDF"}
 }
 
@@ -40,7 +40,7 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法：强力锁定 + 晚接早规避 ---
+# --- 核心算法：锁定位置 + 跨天规避 ---
 def get_optimized_order(avail_list, last_evening_person=None, super_fixed_morn=None, super_fixed_eve=None, never_evening=None):
     if not avail_list: return []
     
