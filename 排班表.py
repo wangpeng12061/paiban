@@ -4,18 +4,18 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置 (高饱和度、强区分度)
+# 2. 颜色配置 (根据哥的要求进行精准微调)
 color_config = {
     "丁泳池": {"bg": "#90CAF9", "text": "#000"}, # 鲜亮蓝
-    "一一": {"bg": "#F48FB1", "text": "#000"},   # 亮珊瑚粉
+    "一一": {"bg": "#CE93D8", "text": "#000"},   # 换成原思涵的明紫
     "刘文": {"bg": "#A5D6A7", "text": "#000"},   # 翠绿
     "泽文": {"bg": "#FFF59D", "text": "#000"},   # 亮黄
-    "思涵": {"bg": "#CE93D8", "text": "#000"},   # 明紫
-    "雷雷": {"bg": "#80DEEA", "text": "#000"},   # 亮青
+    "思涵": {"bg": "#F48FB1", "text": "#000"},   # 换成原一一的亮珊瑚粉
+    "雷雷": {"bg": "#F3E5F5", "text": "#000"},   # 淡紫白色
     "周志北": {"bg": "#C5E1A5", "text": "#000"}, # 嫩绿
     "陈曦": {"bg": "#FFCC80", "text": "#000"},   # 亮橙
-    "马邦君": {"bg": "#BCAAA4", "text": "#000"}, # 浅褐
-    "焦斌": {"bg": "#B0BEC5", "text": "#000"},   # 蓝灰
+    "马邦君": {"bg": "#B0BEC5", "text": "#000"}, # 换成原焦斌的蓝灰
+    "焦斌": {"bg": "#BCAAA4", "text": "#000"},   # 换成原马邦君的浅褐
     "——": {"bg": "#FFFFFF", "text": "#DFDFDF"}
 }
 
@@ -60,7 +60,7 @@ def get_optimized_order(avail_list, last_evening_person=None, super_fixed_morn=N
     final_morn = None
     fixed_morn_cands = [p for p in remaining if p in (super_fixed_morn or [])]
     
-    # 规避晚接早：如果锁定人是昨晚下班的，今天他不能排早班
+    # 规避晚接早
     morn_pool = [p for p in fixed_morn_cands if p != last_evening_person]
     
     if morn_pool:
@@ -106,13 +106,13 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
         if ord_s: last_s_eve = ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 (颜色加深，名字极致黑) ---
+    # --- HTML 渲染 ---
     html = """<style>
         .main-table { width: 100%; border-collapse: collapse; text-align: center; }
         .main-table th, .main-table td { border: 2.5px solid #333; padding: 12px; }
         .header-row { background-color: #DDD; font-weight: bold; }
         .time-col { background-color: #f9f9f9; width: 100px; font-weight: 900; border-right: 4px solid #000; font-size: 15px; }
-        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 22px !important; display: block; text-shadow: 0.5px 0.5px 0px #fff; }
+        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 22px !important; display: block; }
     </style><table class='main-table'>"""
 
     # 1. 休息区
