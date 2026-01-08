@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置 (莫兰迪清爽色系)
+# 2. 颜色配置
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -19,12 +19,12 @@ all_staffs = ["马邦君", "丁泳池", "陈曦", "周志北", "焦斌"]
 all_members = all_hosts + all_staffs
 days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
-# --- 顶栏设置 ---
+# --- 顶栏 ---
 st.title("🤵‍♂️ 王巨帅智能排班后台")
-st.markdown("<p style='color: #666; font-size: 0.9em;'>核心逻辑：丁泳池首班固定 | 刘文/焦斌末班固定 | 一一/思涵/陈曦避开晚班 | 强制规避晚接早</p>", unsafe_allow_html=True)
+st.markdown("<p style='color: #666;'>✅ 约束：丁泳池首班 | 刘文/焦斌末班 | 一一/思涵/陈曦不排晚班 | 自动规避晚接早</p>", unsafe_allow_html=True)
 
 # 第一步：设置休息
-st.subheader("⚙️ 第一步：人员休假同步")
+st.subheader("⚙️ 第一步：同步休假安排")
 off_data = {}
 cols_off = st.columns(7)
 for i, day in enumerate(days):
@@ -36,32 +36,20 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法逻辑 ---
+# --- 核心算法 ---
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
+    eve_cands = [p for p in avail_list if p not in (never_evening or [])]
+    target_eve = [p for p in eve_cands if p in (evening_pref or [])]
+    final_eve = target_eve[0] if target_eve else (random.choice(eve_cands) if eve_cands else avail_list[-1])
     
-    # 挑选晚班（避开限制名单）
-    evening_candidates = [p for p in avail_list if p not in (never_evening or [])]
-    target_evening = [p for p in evening_candidates if p in (evening_pref or [])]
+    rem_morn = [p for p in avail_list if p != final_eve]
+    if not rem_morn: return [final_eve]
+    morn_cands = [p for p in rem_morn if p != last_evening_person]
+    if not morn_cands: morn_cands = rem_morn
+    morn_pref_list = [p for p in morn_cands if p in (morning_pref or [])]
+    final_morn = morn_pref_list[0] if morn_pref_list else random.choice(morn_cands)
     
-    if target_evening:
-        final_eve = target_evening[0]
-    elif evening_candidates:
-        final_eve = random.choice(evening_candidates)
-    else:
-        final_eve = avail_list[-1]
-
-    # 挑选早班（规避晚接早，优先指定人）
-    rem_for_morning = [p for p in avail_list if p != final_eve]
-    if not rem_for_morning: return [final_eve]
-    
-    morn_candidates = [p for p in rem_for_morning if p != last_evening_person]
-    if not morn_candidates: morn_candidates = rem_for_morning
-    
-    morn_pref_list = [p for p in morn_candidates if p in (morning_pref or [])]
-    final_morn = morn_pref_list[0] if morn_pref_list else random.choice(morn_candidates)
-
-    # 填充中间
     mid = [p for p in avail_list if p != final_morn and p != final_eve]
     random.shuffle(mid)
     return [final_morn] + mid + [final_eve]
@@ -75,8 +63,8 @@ def get_grid_data(ordered_list):
         grid.append(ordered_list[idx])
     return grid
 
-# 第二步：生成可视化看板
-if st.button("🚀 开启智能排班并生成看板", use_container_width=True):
+# 第二步：生成看板
+if st.button("🚀 生成带边框的高级排班看板", use_container_width=True):
     time_index = [f"{h:02d}:00-{(h+1):02d}:00" for h in range(8, 24)]
     weekly_data = {}
     last_h, last_s = None, None
@@ -84,44 +72,45 @@ if st.button("🚀 开启智能排班并生成看板", use_container_width=True)
     for day in days:
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
-        
         ord_h = get_optimized_order(avail_h, last_h, evening_pref=["刘文"], never_evening=["一一", "思涵"])
         ord_s = get_optimized_order(avail_s, last_s, morning_pref=["丁泳池"], evening_pref=["焦斌"], never_evening=["陈曦"])
-        
         last_h, last_s = ord_h[-1], ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 排版渲染 ---
+    # --- HTML 渲染 (边框加强版) ---
     html = """<style>
-        .schedule-table { width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #eee; }
-        .schedule-table th, .schedule-table td { border: 1px solid #eee; padding: 10px; font-size: 13px; }
-        .header-day { background-color: #fcfcfc; font-weight: bold; color: #333; }
-        .name-col { background-color: #ffffff; width: 90px; font-weight: bold; }
-    </style><table class='schedule-table'>"""
+        .main-table { width: 100%; border-collapse: collapse; text-align: center; color: #333; }
+        /* 关键：增加边框厚度和颜色 */
+        .main-table th, .main-table td { border: 2px solid #555; padding: 10px; font-size: 13px; }
+        .header-row { background-color: #f2f2f2; font-weight: bold; }
+        .time-col { background-color: #ffffff; width: 100px; font-weight: bold; border-right: 3px solid #333; }
+        .side-name { width: 90px; font-weight: bold; }
+    </style><table class='main-table'>"""
 
-    # 1. 休息区 (紧凑型)
-    html += "<tr><th class='name-col'>休假状态</th>"
-    for day in days: html += f"<th colspan='2' class='header-day'>{day}</th>"
+    # 1. 休息区
+    html += "<tr class='header-row'><th class='side-name'>人员休息</th>"
+    for day in days: html += f"<th colspan='2'>{day}</th>"
     html += "</tr>"
     for p in all_members:
         s = color_config.get(p, {"bg": "#fff", "text": "#000"})
-        html += f"<tr><td class='name-col' style='background:{s['bg']}; color:{s['text']};'>{p}</td>"
+        html += f"<tr><td class='side-name' style='background:{s['bg']}; color:{s['text']};'>{p}</td>"
         for day in days:
             is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
             bg, txt, content = (s['bg'], s['text'], f"<b>{p}</b>") if is_off else ("#fff", "#fff", "")
-            html += f"<td colspan='2' style='background:{bg}; color:{txt}; border-bottom: 1px solid #f9f9f9;'>{content}</td>"
+            html += f"<td colspan='2' style='background:{bg}; color:{txt};'>{content}</td>"
         html += "</tr>"
 
-    html += "<tr><td colspan='15' style='background:#f7f7f7; height:12px; border:none;'></td></tr>"
+    # 隔离带
+    html += "<tr><td colspan='15' style='background:#333; height:8px; border:none;'></td></tr>"
 
-    # 2. 排班区
-    html += "<tr><th class='name-col'>时间</th>"
+    # 2. 排班区表头
+    html += "<tr class='header-row'><th class='time-col'>时间</th>"
     for _ in days: html += "<th>主播</th><th>场控</th>"
     html += "</tr>"
 
     skip = {day: {"主播": 0, "场控": 0} for day in days}
     for i in range(16):
-        html += f"<tr><td class='name-col' style='color:#bbb; font-weight: normal;'>{time_index[i]}</td>"
+        html += f"<tr><td class='time-col'>{time_index[i]}</td>"
         for day in days:
             for role in ["主播", "场控"]:
                 if skip[day][role] > 0:
@@ -134,6 +123,6 @@ if st.button("🚀 开启智能排班并生成看板", use_container_width=True)
                     else: break
                 skip[day][role] = rs - 1
                 c = color_config.get(name, {"bg": "#fff", "text": "#000"})
-                html += f"<td rowspan='{rs}' style='background:{c['bg']}; color:{c['text']}; font-weight:bold;'>{name}</td>"
+                html += f"<td rowspan='{rs}' style='background:{c['bg']}; color:{c['text']}; font-weight:bold; font-size:14px;'>{name}</td>"
         html += "</tr>"
     st.markdown(html + "</table>", unsafe_allow_html=True)
