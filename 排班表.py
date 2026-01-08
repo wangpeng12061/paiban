@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="直播间 16H 智能排班系统", layout="wide")
 
-# 2. 颜色配置 (莫兰迪色系)
+# 2. 颜色配置
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -34,23 +34,22 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法逻辑：固定优先 + 规避晚接早 + 陈曦避晚班 ---
+# --- 核心算法逻辑 ---
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
     
-    # 1. 确定晚班人选
+    # 1. 确定晚班人选 (排除 never_evening 名单)
     final_evening_person = None
-    # 晚班候选人：剔除掉明确不值晚班的人（陈曦）
     evening_candidates = [p for p in avail_list if p not in (never_evening or [])]
     
-    # 如果有首选晚班的人（刘文/焦斌）且他在候选名单中
+    # 优先选指定晚班人 (如 刘文/焦斌)
     target_evening = [p for p in evening_candidates if p in (evening_pref or [])]
     if target_evening:
         final_evening_person = target_evening[0]
     elif evening_candidates:
         final_evening_person = random.choice(evening_candidates)
     else:
-        # 如果极端情况下候选人全休了，才从全员里挑一个非陈曦的，或者保底
+        # 兜底逻辑：如果全员都在 never_evening 名单，则从可用人员中挑最后一个
         final_evening_person = avail_list[-1]
 
     # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选)
@@ -68,7 +67,7 @@ def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None,
     else:
         final_morning_person = random.choice(morning_candidates)
 
-    # 3. 填充中间
+    # 3. 填充中间位置
     middle_people = [p for p in avail_list if p != final_morning_person and p != final_evening_person]
     random.shuffle(middle_people)
     
@@ -94,9 +93,12 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 主播排班：刘文末班
-        ordered_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, evening_pref=["刘文"])
-        # 场控排班：丁泳池首班，焦斌末班，陈曦永不末班
+        # 主播排班：刘文末班优先；一一、思涵永不末班
+        ordered_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, 
+                                        evening_pref=["刘文"], 
+                                        never_evening=["一一", "思涵"])
+        
+        # 场控排班：丁泳池首班优先；焦斌末班优先；陈曦永不末班
         ordered_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, 
                                         morning_pref=["丁泳池"], 
                                         evening_pref=["焦斌"], 
@@ -152,4 +154,4 @@ if st.button("✨ 生成排班看板", use_container_width=True):
                 html += f"<td rowspan='{rs}' style='background:{st_color['bg']}; color:{st_color['text']}; font-weight:600;'>{name}</td>"
         html += "</tr>"
     st.markdown(html + "</table></div>", unsafe_allow_html=True)
-    st.info("💡 逻辑确认：丁泳池首班/刘文焦斌末班优先；规避晚接早；陈曦不排晚班。")
+    st.success("✅ 逻辑已更新：一一、思涵、陈曦 均已排除在晚班之外。")
