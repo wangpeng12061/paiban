@@ -2,9 +2,9 @@ import streamlit as st
 import random
 
 # 1. 页面配置
-st.set_page_config(page_title="直播间 16H 智能排班系统", layout="wide")
+st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置 (莫兰迪色)
+# 2. 颜色配置 (莫兰迪清爽色系)
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -19,11 +19,12 @@ all_staffs = ["马邦君", "丁泳池", "陈曦", "周志北", "焦斌"]
 all_members = all_hosts + all_staffs
 days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
-st.title("🌿 直播间 16H 智能排班系统")
-st.caption("✅ 逻辑：丁泳池首班 | 刘文/焦斌末班 | 一一/思涵/陈曦避开晚班 | 规避晚接早")
+# --- 顶栏设置 ---
+st.title("🤵‍♂️ 王巨帅智能排班后台")
+st.markdown("<p style='color: #666; font-size: 0.9em;'>核心逻辑：丁泳池首班固定 | 刘文/焦斌末班固定 | 一一/思涵/陈曦避开晚班 | 强制规避晚接早</p>", unsafe_allow_html=True)
 
 # 第一步：设置休息
-st.subheader("⚙️ 第一步：设置人员休息")
+st.subheader("⚙️ 第一步：人员休假同步")
 off_data = {}
 cols_off = st.columns(7)
 for i, day in enumerate(days):
@@ -39,7 +40,7 @@ st.divider()
 def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
     
-    # 挑选晚班（避开陈曦、一一、思涵）
+    # 挑选晚班（避开限制名单）
     evening_candidates = [p for p in avail_list if p not in (never_evening or [])]
     target_evening = [p for p in evening_candidates if p in (evening_pref or [])]
     
@@ -50,7 +51,7 @@ def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None,
     else:
         final_eve = avail_list[-1]
 
-    # 挑选早班（避开昨天晚班，优先丁泳池）
+    # 挑选早班（规避晚接早，优先指定人）
     rem_for_morning = [p for p in avail_list if p != final_eve]
     if not rem_for_morning: return [final_eve]
     
@@ -74,8 +75,8 @@ def get_grid_data(ordered_list):
         grid.append(ordered_list[idx])
     return grid
 
-# 第二步：生成看板
-if st.button("✨ 生成排班看板", use_container_width=True):
+# 第二步：生成可视化看板
+if st.button("🚀 开启智能排班并生成看板", use_container_width=True):
     time_index = [f"{h:02d}:00-{(h+1):02d}:00" for h in range(8, 24)]
     weekly_data = {}
     last_h, last_s = None, None
@@ -90,16 +91,16 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         last_h, last_s = ord_h[-1], ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 ---
+    # --- HTML 排版渲染 ---
     html = """<style>
-        .schedule-table { width: 100%; border-collapse: collapse; text-align: center; }
-        .schedule-table th, .schedule-table td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
-        .header-day { background-color: #f8f9fa; font-weight: bold; }
-        .name-col { background-color: #fdfdfd; width: 90px; font-weight: bold; }
+        .schedule-table { width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #eee; }
+        .schedule-table th, .schedule-table td { border: 1px solid #eee; padding: 10px; font-size: 13px; }
+        .header-day { background-color: #fcfcfc; font-weight: bold; color: #333; }
+        .name-col { background-color: #ffffff; width: 90px; font-weight: bold; }
     </style><table class='schedule-table'>"""
 
-    # 1. 休息区
-    html += "<tr><th class='name-col'>休假安排</th>"
+    # 1. 休息区 (紧凑型)
+    html += "<tr><th class='name-col'>休假状态</th>"
     for day in days: html += f"<th colspan='2' class='header-day'>{day}</th>"
     html += "</tr>"
     for p in all_members:
@@ -108,10 +109,10 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         for day in days:
             is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
             bg, txt, content = (s['bg'], s['text'], f"<b>{p}</b>") if is_off else ("#fff", "#fff", "")
-            html += f"<td colspan='2' style='background:{bg}; color:{txt};'>{content}</td>"
+            html += f"<td colspan='2' style='background:{bg}; color:{txt}; border-bottom: 1px solid #f9f9f9;'>{content}</td>"
         html += "</tr>"
 
-    html += "<tr><td colspan='15' style='background:#f0f0f0; height:10px; border:none;'></td></tr>"
+    html += "<tr><td colspan='15' style='background:#f7f7f7; height:12px; border:none;'></td></tr>"
 
     # 2. 排班区
     html += "<tr><th class='name-col'>时间</th>"
@@ -120,7 +121,7 @@ if st.button("✨ 生成排班看板", use_container_width=True):
 
     skip = {day: {"主播": 0, "场控": 0} for day in days}
     for i in range(16):
-        html += f"<tr><td class='name-col' style='color:#999;'>{time_index[i]}</td>"
+        html += f"<tr><td class='name-col' style='color:#bbb; font-weight: normal;'>{time_index[i]}</td>"
         for day in days:
             for role in ["主播", "场控"]:
                 if skip[day][role] > 0:
