@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="直播间 16H 智能排班系统", layout="wide")
 
-# 2. 颜色配置
+# 2. 颜色配置 (莫兰迪色系)
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -34,19 +34,26 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法逻辑：固定优先 + 规避晚接早 ---
-def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None):
+# --- 核心算法逻辑：固定优先 + 规避晚接早 + 陈曦避晚班 ---
+def get_optimized_order(avail_list, last_evening_person=None, morning_pref=None, evening_pref=None, never_evening=None):
     if not avail_list: return []
     
-    # 1. 确定晚班人选 (优先排指定的人，如 刘文/焦斌)
+    # 1. 确定晚班人选
     final_evening_person = None
-    target_evening = [p for p in avail_list if p in (evening_pref or [])]
+    # 晚班候选人：剔除掉明确不值晚班的人（陈曦）
+    evening_candidates = [p for p in avail_list if p not in (never_evening or [])]
+    
+    # 如果有首选晚班的人（刘文/焦斌）且他在候选名单中
+    target_evening = [p for p in evening_candidates if p in (evening_pref or [])]
     if target_evening:
         final_evening_person = target_evening[0]
+    elif evening_candidates:
+        final_evening_person = random.choice(evening_candidates)
     else:
-        final_evening_person = random.choice(avail_list)
+        # 如果极端情况下候选人全休了，才从全员里挑一个非陈曦的，或者保底
+        final_evening_person = avail_list[-1]
 
-    # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选，如 丁泳池)
+    # 2. 确定早班人选 (规避昨晚末班 + 优先指定人选)
     remaining_for_morning = [p for p in avail_list if p != final_evening_person]
     if not remaining_for_morning: 
         return [final_evening_person]
@@ -87,14 +94,19 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
+        # 主播排班：刘文末班
         ordered_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, evening_pref=["刘文"])
-        ordered_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, morning_pref=["丁泳池"], evening_pref=["焦斌"])
+        # 场控排班：丁泳池首班，焦斌末班，陈曦永不末班
+        ordered_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, 
+                                        morning_pref=["丁泳池"], 
+                                        evening_pref=["焦斌"], 
+                                        never_evening=["陈曦"])
         
         last_h_eve = ordered_h[-1] if ordered_h else None
         last_s_eve = ordered_s[-1] if ordered_s else None
         weekly_data[day] = {"主播": get_grid_data(ordered_h), "场控": get_grid_data(ordered_s)}
 
-    # --- HTML 渲染 (删除了休息区行间的隔断) ---
+    # --- HTML 渲染 ---
     html = """<style>
         .schedule-table { width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; }
         .schedule-table th, .schedule-table td { border: 1px solid #ddd; padding: 6px; font-size: 13px; }
@@ -102,7 +114,7 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         .name-col { background-color: #fafafa; width: 100px; font-weight: bold; }
     </style><div class='table-container'><table class='schedule-table'>"""
 
-    # 休息公示区：删除了 row 之间的隔断行
+    # 休息公示区
     html += "<tr><th class='name-col'>休假安排</th>"
     for day in days: html += f"<th colspan='2' class='header-day'>{day}</th>"
     html += "</tr>"
@@ -112,20 +124,16 @@ if st.button("✨ 生成排班看板", use_container_width=True):
         for day in days:
             is_off = person in off_data[day]["h"] or person in off_data[day]["s"]
             bg = s['bg'] if is_off else '#fff'
-            text_color = s['text'] if is_off else '#fff' # 不休息则文字透明
+            text_color = s['text'] if is_off else '#fff'
             content = f"<b>{person}</b>" if is_off else ""
             html += f"<td colspan='2' style='background:{bg}; color:{text_color};'>{content}</td>"
         html += "</tr>"
 
-    # 中间过渡大隔断（只保留这一个，区分上下表）
     html += "<tr><td colspan='15' style='background:#f0f0f0; height:12px;'></td></tr>"
-
-    # 排班表头
     html += "<tr><th class='name-col'>时间</th>"
     for _ in days: html += "<th>主播</th><th>场控</th>"
     html += "</tr>"
 
-    # 排班内容渲染
     skip = {day: {"主播": 0, "场控": 0} for day in days}
     for i in range(16):
         html += f"<tr><td class='name-col' style='color:#888;'>{time_index[i]}</td>"
@@ -144,3 +152,4 @@ if st.button("✨ 生成排班看板", use_container_width=True):
                 html += f"<td rowspan='{rs}' style='background:{st_color['bg']}; color:{st_color['text']}; font-weight:600;'>{name}</td>"
         html += "</tr>"
     st.markdown(html + "</table></div>", unsafe_allow_html=True)
+    st.info("💡 逻辑确认：丁泳池首班/刘文焦斌末班优先；规避晚接早；陈曦不排晚班。")
