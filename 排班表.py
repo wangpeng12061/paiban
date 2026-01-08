@@ -6,16 +6,16 @@ st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
 # 2. 颜色配置
 color_config = {
-    "丁泳池": {"bg": "#E3F2FD", "text": "#000"}, # 极淡蓝
-    "一一": {"bg": "#FCE4EC", "text": "#000"},   # 极淡粉
-    "刘文": {"bg": "#E8F5E9", "text": "#000"},   # 极淡绿
-    "泽文": {"bg": "#FFF9C4", "text": "#000"},   # 极淡黄
-    "思涵": {"bg": "#F3E5F5", "text": "#000"},   # 极淡紫
-    "雷雷": {"bg": "#E0F7FA", "text": "#000"},   # 极淡青
-    "周志北": {"bg": "#F1F8E9", "text": "#000"}, # 极淡草绿
-    "陈曦": {"bg": "#FFF3E0", "text": "#000"},   # 极淡橙
-    "马邦君": {"bg": "#EFEBE9", "text": "#000"}, # 极淡褐
-    "焦斌": {"bg": "#ECEFF1", "text": "#000"},   # 极淡蓝灰
+    "丁泳池": {"bg": "#E3F2FD", "text": "#000"}, 
+    "一一": {"bg": "#FCE4EC", "text": "#000"},   
+    "刘文": {"bg": "#E8F5E9", "text": "#000"},   
+    "泽文": {"bg": "#FFF9C4", "text": "#000"},   
+    "思涵": {"bg": "#F3E5F5", "text": "#000"},   
+    "雷雷": {"bg": "#E0F7FA", "text": "#000"},   
+    "周志北": {"bg": "#F1F8E9", "text": "#000"}, 
+    "陈曦": {"bg": "#FFF3E0", "text": "#000"},   
+    "马邦君": {"bg": "#EFEBE9", "text": "#000"}, 
+    "焦斌": {"bg": "#ECEFF1", "text": "#000"},   
     "——": {"bg": "#FFFFFF", "text": "#DFDFDF"}
 }
 
@@ -40,30 +40,30 @@ for i, day in enumerate(days):
 
 st.divider()
 
-# --- 核心算法优化：加入固定早晚班和限制逻辑 ---
+# --- 核心算法优化：锁定位置 + 强制规避晚接早 ---
 def get_optimized_order(avail_list, last_evening_person=None, fixed_morning=None, fixed_evening=None, never_evening=None):
     if not avail_list: return []
     
-    # 1. 确定谁排最后（晚班）
-    # 优先选 fixed_evening 里的，且不能在 never_evening 里
+    # 1. 先定晚班 (后下班的人)
     eve_candidates = [p for p in avail_list if p in (fixed_evening or [])]
     if not eve_candidates:
-        # 如果没有固定的，就在普通人里选（排除不能排晚班的人）
         eve_candidates = [p for p in avail_list if p not in (never_evening or [])]
     
+    # 选定晚班
     final_eve = random.choice(eve_candidates) if eve_candidates else avail_list[-1]
     
-    # 2. 确定谁排第一（早班）
+    # 2. 再定早班 (先上班的人)
     remaining = [p for p in avail_list if p != final_eve]
     if not remaining: return [final_eve]
     
-    # 优先选 fixed_morning 里的，且规避晚接早
+    # 早班筛选逻辑：必须不在 fixed_morning 名单里，且绝对不能是昨天最后下班的那位 (last_evening_person)
     morn_candidates = [p for p in remaining if p in (fixed_morning or []) and p != last_evening_person]
-    if not morn_candidates:
-        # 如果没固定的，就找规避晚接早的人
-        morn_candidates = [p for p in remaining if p != last_evening_person]
     
-    # 如果还是没候选人（全员都要规避），就只能在剩下的人里随便挑一个
+    # 如果固定早班的人刚好是昨天晚班，为了休息，只能从剩下的人里挑规避了晚接早的人
+    if not morn_candidates:
+        morn_candidates = [p for p in remaining if p != last_evening_person]
+        
+    # 如果全员都无法规避（极端情况），才保底随机
     if not morn_candidates: morn_candidates = remaining
     
     final_morn = random.choice(morn_candidates)
@@ -87,24 +87,27 @@ def get_grid_data(ordered_list):
 if st.button("🚀 生成智能排班看板", use_container_width=True):
     time_index = [f"{h:02d}:00-{(h+1):02d}:00" for h in range(8, 24)]
     weekly_data = {}
-    last_h, last_s = None, None
+    
+    # 跨天记忆：用于规避晚接早
+    last_h_eve, last_s_eve = None, None
     
     for day in days:
         avail_h = [h for h in all_hosts if h not in off_data[day]["h"]]
         avail_s = [s for s in all_staffs if s not in off_data[day]["s"]]
         
-        # 应用哥要求的死逻辑
-        ord_h = get_optimized_order(avail_h, last_h, 
+        # 传入昨晚最后下班的人名
+        ord_h = get_optimized_order(avail_h, last_evening_person=last_h_eve, 
                                    fixed_evening=["刘文"], 
                                    never_evening=["一一", "思涵"])
         
-        ord_s = get_optimized_order(avail_s, last_s, 
+        ord_s = get_optimized_order(avail_s, last_evening_person=last_s_eve, 
                                    fixed_morning=["丁泳池"], 
                                    fixed_evening=["焦斌"], 
                                    never_evening=["陈曦"])
         
-        if ord_h: last_h = ord_h[-1]
-        if ord_s: last_s = ord_s[-1]
+        # 记录今晚下班的人，给明天用
+        if ord_h: last_h_eve = ord_h[-1]
+        if ord_s: last_s_eve = ord_s[-1]
         
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
