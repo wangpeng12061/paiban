@@ -4,7 +4,7 @@ import random
 # 1. 页面配置
 st.set_page_config(page_title="王巨帅智能排班后台", layout="wide")
 
-# 2. 颜色配置 (背景色保留，文字颜色在下方渲染时强制转黑)
+# 2. 颜色配置 (背景色保留，名字颜色在下方渲染时强制转黑)
 color_config = {
     "丁泳池": {"bg": "#E1F5FE", "text": "#01579B"}, "一一": {"bg": "#F3E5F5", "text": "#4A148C"},
     "刘文": {"bg": "#E8F5E9", "text": "#1B5E20"}, "泽文": {"bg": "#FFFDE7", "text": "#F57F17"},
@@ -78,31 +78,29 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
         last_h, last_s = ord_h[-1], ord_s[-1]
         weekly_data[day] = {"主播": get_grid_data(ord_h), "场控": get_grid_data(ord_s)}
 
-    # --- HTML 渲染 (重点优化：人名全黑、加大、加粗) ---
+    # --- HTML 渲染 (重点优化：名字黑、大、粗) ---
     html = """<style>
         .main-table { width: 100%; border-collapse: collapse; text-align: center; color: #333; }
         .main-table th, .main-table td { border: 2px solid #444; padding: 10px; }
         .header-row { background-color: #f2f2f2; font-weight: bold; }
         .time-col { background-color: #ffffff; width: 100px; font-weight: bold; border-right: 3px solid #000; font-size: 14px; }
-        .side-name { width: 90px; font-weight: 900; font-size: 16px; color: #000 !important; }
-        /* 核心样式：强制名字黑、大、粗 */
-        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 18px !important; }
+        /* 核心样式：强制名字展示效果 */
+        .name-cell { color: #000000 !important; font-weight: 900 !important; font-size: 22px !important; display: block; }
     </style><table class='main-table'>"""
 
     # 1. 休息区
-    html += "<tr class='header-row'><th class='side-name'>人员状态</th>"
+    html += "<tr class='header-row'><th style='width:90px;'>人员状态</th>"
     for day in days: html += f"<th colspan='2'>{day}</th>"
     html += "</tr>"
     for p in all_members:
         s = color_config.get(p, {"bg": "#fff"})
-        html += f"<tr><td class='side-name' style='background:{s['bg']};'>{p}</td>"
+        html += f"<tr><td style='background:{s['bg']}; font-weight:bold;'>{p}</td>"
         for day in days:
             is_off = p in off_data[day]["h"] or p in off_data[day]["s"]
             bg, content = (s['bg'], f"<span class='name-cell'>{p}</span>") if is_off else ("#fff", "")
             html += f"<td colspan='2' style='background:{bg};'>{content}</td>"
         html += "</tr>"
 
-    # 黑色分割隔离带
     html += "<tr><td colspan='15' style='background:#444; height:8px; border:none;'></td></tr>"
 
     # 2. 排班区
@@ -125,7 +123,7 @@ if st.button("🚀 生成智能排班看板", use_container_width=True):
                     else: break
                 skip[day][role] = rs - 1
                 c = color_config.get(name, {"bg": "#fff"})
-                # 应用强制加粗加黑样式
+                # 应用最新版黑大粗样式
                 html += f"<td rowspan='{rs}' style='background:{c['bg']};'><span class='name-cell'>{name}</span></td>"
         html += "</tr>"
     st.markdown(html + "</table>", unsafe_allow_html=True)
